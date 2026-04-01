@@ -53,6 +53,7 @@ const Reader: React.FC = () => {
   const punctuationMultipliers = useSettingsStore((s) => s.punctuationMultipliers);
   const contentLanguageOverride = useSettingsStore((s) => s.contentLanguageOverride);
   const contextLineCount = useSettingsStore((s) => s.contextLineCount);
+  const showContextHints = useSettingsStore((s) => s.showContextHints);
 
   // Local state
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -295,8 +296,11 @@ const Reader: React.FC = () => {
         return;
       }
 
-      switch (e.key) {
-        case ' ':
+      // Use e.code for layout-independent shortcuts (works on any keyboard language)
+      const code = e.code;
+
+      switch (code) {
+        case 'Space':
           e.preventDefault();
           toggle();
           break;
@@ -319,14 +323,15 @@ const Reader: React.FC = () => {
         case 'Escape':
           if (shortcutsOpen) {
             setShortcutsOpen(false);
+          } else if (settingsOpen) {
+            setSettingsOpen(false);
           } else {
             pause();
             saveProgress();
             navigate('/');
           }
           break;
-        case 'f':
-        case 'F':
+        case 'KeyF':
           e.preventDefault();
           if (document.fullscreenElement) {
             document.exitFullscreen().catch(() => {});
@@ -334,18 +339,18 @@ const Reader: React.FC = () => {
             document.documentElement.requestFullscreen().catch(() => {});
           }
           break;
-        case '?':
-          e.preventDefault();
-          setShortcutsOpen((prev) => !prev);
+        case 'Slash': // ? is Shift+Slash on most layouts
+          if (e.shiftKey) {
+            e.preventDefault();
+            setShortcutsOpen((prev) => !prev);
+          }
           break;
-        case 's':
-        case 'S':
+        case 'KeyS':
           e.preventDefault();
           pause();
           setSettingsOpen((prev) => !prev);
           break;
-        case 'v':
-        case 'V':
+        case 'KeyV':
           e.preventDefault();
           pause();
           setContextVisible((prev) => !prev);
@@ -361,7 +366,7 @@ const Reader: React.FC = () => {
     }
 
     function handleKeyUp(e: KeyboardEvent) {
-      if (e.key === 'Enter') {
+      if (e.code === 'Enter') {
         setContextVisible(false);
       }
     }
@@ -372,7 +377,7 @@ const Reader: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [toggle, skipSentence, setWpm, wpm, pause, saveProgress, navigate, shortcutsOpen, contextVisible]);
+  }, [toggle, skipSentence, setWpm, wpm, pause, saveProgress, navigate, shortcutsOpen, settingsOpen, contextVisible]);
 
   // ---- Touch gesture handling ----
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -572,9 +577,11 @@ const Reader: React.FC = () => {
                 )}
               </p>
 
-              <p className="mt-6 text-center text-xs" style={{ color: 'var(--color-context-hint)' }}>
-                V — {t('reader.toggleContext') || 'toggle'} · Enter — {t('reader.holdToShow') || 'hold to show'}
-              </p>
+              {showContextHints && (
+                <p className="mt-6 text-center text-xs" style={{ color: 'var(--color-context-hint)' }}>
+                  V — {t('reader.toggleContext') || 'toggle'} · Enter — {t('reader.holdToShow') || 'hold to show'}
+                </p>
+              )}
             </div>
           </div>
         ) : (

@@ -65,6 +65,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ compact = false }) => {
     showCrosshair,
     showWpmCounter,
     showProgressBar,
+    showContextHints,
     uiLanguage,
     contentLanguageOverride,
     updateSetting,
@@ -302,6 +303,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ compact = false }) => {
           <Toggle
             checked={showProgressBar}
             onChange={(v) => updateSetting('showProgressBar', v)}
+          />
+        </SettingRow>
+
+        {/* Context hints */}
+        <SettingRow label={t('settings.showContextHints')}>
+          <Toggle
+            checked={showContextHints}
+            onChange={(v) => updateSetting('showContextHints', v)}
           />
         </SettingRow>
       </Section>

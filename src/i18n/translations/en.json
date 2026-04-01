@@ -53,6 +53,7 @@
     "showCrosshair": "Show guide lines",
     "showWpm": "Show WPM counter",
     "showProgress": "Show progress bar",
+    "showContextHints": "Show context shortcut hints",
     "language": "Language",
     "uiLanguage": "UI Language",
     "contentLanguage": "Content language override",

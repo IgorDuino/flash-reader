@@ -24,6 +24,7 @@ export interface Settings {
   showCrosshair: boolean;
   showWpmCounter: boolean;
   showProgressBar: boolean;
+  showContextHints: boolean;
   uiLanguage: string;
   contentLanguageOverride: string | null;
   viewMode: 'grid' | 'list';
@@ -44,6 +45,7 @@ const DEFAULT_SETTINGS: Settings = {
   showCrosshair: true,
   showWpmCounter: true,
   showProgressBar: true,
+  showContextHints: true,
   uiLanguage: 'en',
   contentLanguageOverride: null,
   viewMode: 'grid',

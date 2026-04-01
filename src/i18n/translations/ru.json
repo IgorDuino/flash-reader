@@ -53,6 +53,7 @@
     "showCrosshair": "Показывать направляющие линии",
     "showWpm": "Показывать счётчик скорости",
     "showProgress": "Показывать прогресс",
+    "showContextHints": "Подсказки клавиш в контексте",
     "language": "Язык",
     "uiLanguage": "Язык интерфейса",
     "contentLanguage": "Язык содержимого",

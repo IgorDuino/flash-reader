@@ -1,6 +1,18 @@
 import { del, list, put } from '@vercel/blob';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { ServerBookMeta } from './index';
+
+interface ServerBookMeta {
+  id: string;
+  title: string;
+  author: string;
+  format: string;
+  coverImage?: string;
+  totalWords: number;
+  language: string;
+  chapterTitles: string[];
+  addedAt: number;
+  fileUrl: string;
+}
 
 const INDEX_PATH = '_library/index.json';
 

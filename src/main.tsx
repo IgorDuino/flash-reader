@@ -3,17 +3,16 @@ import { createRoot } from 'react-dom/client';
 import './styles/globals.css';
 import App from './App';
 
-// Register service worker for PWA — with automatic update
+// Unregister all service workers and clear caches — fixes white screen from stale SW
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => {
-    try {
-      const reg = await navigator.serviceWorker.register('/sw.js', {
-        updateViaCache: 'none', // always fetch sw.js from network
-      });
-      // Check for updates periodically
-      setInterval(() => reg.update(), 60 * 60 * 1000); // every hour
-    } catch {
-      // SW registration failed, app still works
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (const reg of registrations) {
+      reg.unregister();
+    }
+  });
+  caches.keys().then((keys) => {
+    for (const key of keys) {
+      caches.delete(key);
     }
   });
 }

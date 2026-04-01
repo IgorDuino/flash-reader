@@ -11,7 +11,7 @@ interface ReaderControlsProps {
 const WPM_PRESETS = [200, 300, 450, 600, 900] as const;
 const WORDS_PER_FLASH_OPTIONS = [1, 2, 3] as const;
 
-const ReaderControls: React.FC<ReaderControlsProps> = ({ visible, onToggle, onOpenSettings }) => {
+const ReaderControls: React.FC<ReaderControlsProps> = ({ visible, onToggle: _, onOpenSettings }) => {
   useLanguage(); // re-render on language change
   const isPlaying = useReaderStore((s) => s.isPlaying);
   const wpm = useReaderStore((s) => s.wpm);

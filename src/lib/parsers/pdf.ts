@@ -39,7 +39,7 @@ export async function parsePdf(data: ArrayBuffer): Promise<ParsedBook> {
           const page = await doc.getPage(pageNum);
           const textContent = await page.getTextContent();
           const pageText = textContent.items
-            .filter(isTextItem)
+            .filter((item): item is typeof item & { str: string } => 'str' in item)
             .map((item) => item.str)
             .join(' ');
 
@@ -86,10 +86,3 @@ interface PdfInfo {
   Author?: string;
 }
 
-interface PdfTextItem {
-  str: string;
-}
-
-function isTextItem(item: unknown): item is PdfTextItem {
-  return typeof item === 'object' && item !== null && 'str' in item;
-}

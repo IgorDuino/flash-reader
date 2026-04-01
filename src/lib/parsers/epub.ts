@@ -46,7 +46,7 @@ export async function parseEpub(data: ArrayBuffer): Promise<ParsedBook> {
         const section = book.section(item.href);
         if (!section) continue;
 
-        const contents = await section.load(book.load.bind(book));
+        const contents: unknown = await section.load(book.load.bind(book));
 
         // epub.js section.load() can return different types depending on version:
         // - A Document

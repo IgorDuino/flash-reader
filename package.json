@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "npx tsx server-dev.ts & vite",
+    "dev:api": "npx tsx server-dev.ts",
+    "dev:vite": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -25,18 +27,23 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@types/express": "^5.0.6",
     "@types/node": "^24.12.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/uuid": "^10.0.0",
     "@vercel/node": "^5.6.24",
     "@vitejs/plugin-react": "^6.0.1",
+    "dotenv": "^17.4.0",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
+    "express": "^5.2.1",
     "globals": "^17.4.0",
+    "tsx": "^4.21.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.57.0",
+    "vercel": "^50.38.2",
     "vite": "^8.0.1"
   }
 }

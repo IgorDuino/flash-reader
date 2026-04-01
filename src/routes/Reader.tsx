@@ -60,6 +60,7 @@ const Reader: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [contextVisible, setContextVisible] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Refs for the timer loop
   const timerRef = useRef<number | null>(null);
@@ -179,7 +180,13 @@ const Reader: React.FC = () => {
       navigate('/');
       return;
     }
-    loadBook(bookId).then(() => setIsLoaded(true));
+    loadBook(bookId)
+      .then(() => setIsLoaded(true))
+      .catch((err) => {
+        console.error('Failed to load book:', err);
+        setLoadError(err instanceof Error ? err.message : 'Failed to load book');
+        setIsLoaded(true); // stop spinner, show error
+      });
   }, [bookId, loadBook, navigate]);
 
   // ---- Save progress helper ----
@@ -493,14 +500,16 @@ const Reader: React.FC = () => {
     );
   }
 
-  // ---- No words (book not found or empty) ----
-  if (words.length === 0 && isLoaded) {
+  // ---- Error or no words ----
+  if ((words.length === 0 || loadError) && isLoaded) {
     return (
       <div
-        className="flex h-screen w-screen flex-col items-center justify-center gap-4 bg-[var(--color-bg)]"
+        className="flex h-screen w-screen flex-col items-center justify-center gap-4 bg-[var(--color-bg)] px-6"
         data-theme={theme}
       >
-        <p className="text-lg text-[var(--color-text-secondary)]">Book not found or has no content.</p>
+        <p className="text-lg text-[var(--color-text-secondary)]">
+          {loadError || 'Book not found or has no content.'}
+        </p>
         <button
           type="button"
           onClick={() => navigate('/')}

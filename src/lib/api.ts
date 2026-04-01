@@ -54,9 +54,15 @@ export async function uploadBook(
 
 /** Download the raw book file from the server. */
 export async function downloadBookFile(bookId: string): Promise<ArrayBuffer> {
-  const res = await fetch(`/api/books/${bookId}`);
-  if (!res.ok) throw new Error(`Failed to download book: ${res.status}`);
-  return res.arrayBuffer();
+  // Step 1: get the public blob URL from our API
+  const metaRes = await fetch(`/api/books/${bookId}`);
+  if (!metaRes.ok) throw new Error(`Failed to get book URL: ${metaRes.status}`);
+  const { fileUrl } = (await metaRes.json()) as { fileUrl: string };
+
+  // Step 2: fetch the file directly from Vercel Blob CDN (public, no CORS issues)
+  const fileRes = await fetch(fileUrl);
+  if (!fileRes.ok) throw new Error(`Failed to download book file: ${fileRes.status}`);
+  return fileRes.arrayBuffer();
 }
 
 /** Delete a book from the server. */

@@ -7,4 +7,12 @@ export default defineConfig({
   build: {
     target: 'es2020',
   },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+    },
+  },
 });

@@ -28,12 +28,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     if (req.method === 'GET') {
-      // Find the book and redirect to its blob URL
+      // Return the blob URL so the client can fetch it directly from CDN
       const books = await readIndex();
       const book = books.find((b) => b.id === id);
       if (!book) return res.status(404).json({ error: 'Book not found' });
-      // Redirect to the Vercel Blob public URL so the client downloads the raw file
-      return res.redirect(302, book.fileUrl);
+      return res.status(200).json({ fileUrl: book.fileUrl });
     }
 
     if (req.method === 'DELETE') {

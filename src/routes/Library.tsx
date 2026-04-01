@@ -32,21 +32,21 @@ const Library: React.FC = () => {
   const hasBooks = books.length > 0;
 
   const handleReadBook = useCallback(
-    (bookId: number) => {
+    (bookId: string) => {
       navigate(`/reader/${bookId}`);
     },
     [navigate],
   );
 
   const handleDeleteBook = useCallback(
-    (bookId: number) => {
+    (bookId: string) => {
       deleteBook(bookId);
     },
     [deleteBook],
   );
 
   const handleImportComplete = useCallback(
-    (bookId: number) => {
+    (bookId: string) => {
       setImportOpen(false);
       navigate(`/reader/${bookId}`);
     },

@@ -1,12 +1,13 @@
 import React, { useCallback, useMemo } from 'react';
-import type { BookRecord, ReadingProgress } from '../db/dexie';
+import type { ReadingProgress } from '../db/dexie';
+import type { ServerBookMeta } from '../lib/api';
 import { t, useLanguage } from '../i18n';
 
 interface BookCardProps {
-  book: BookRecord & { progress?: ReadingProgress };
+  book: ServerBookMeta & { progress?: ReadingProgress };
   viewMode: 'grid' | 'list';
-  onRead: (bookId: number) => void;
-  onDelete: (bookId: number) => void;
+  onRead: (bookId: string) => void;
+  onDelete: (bookId: string) => void;
 }
 
 /** Generate a deterministic hue from the book title for the placeholder color. */
@@ -20,7 +21,7 @@ function titleHue(title: string): number {
 
 const BookCard: React.FC<BookCardProps> = ({ book, viewMode, onRead, onDelete }) => {
   useLanguage();
-  const bookId = book.id!;
+  const bookId = book.id;
   const percent = book.progress?.percentComplete ?? 0;
   const hasStarted = percent > 0;
   const hue = useMemo(() => titleHue(book.title), [book.title]);
@@ -101,7 +102,6 @@ const BookCard: React.FC<BookCardProps> = ({ book, viewMode, onRead, onDelete })
           }
         }}
       >
-        {/* Cover */}
         <div className="relative shrink-0">
           {coverElement}
           <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
@@ -109,7 +109,6 @@ const BookCard: React.FC<BookCardProps> = ({ book, viewMode, onRead, onDelete })
           </div>
         </div>
 
-        {/* Info */}
         <div className="flex flex-1 flex-col gap-2 p-3">
           <h3 className="line-clamp-2 text-sm font-semibold text-[var(--color-text)]">{book.title}</h3>
           <p className="text-xs text-[var(--color-text-secondary)]">{book.author}</p>
@@ -161,10 +160,8 @@ const BookCard: React.FC<BookCardProps> = ({ book, viewMode, onRead, onDelete })
         }
       }}
     >
-      {/* Cover */}
       <div className="shrink-0">{coverElement}</div>
 
-      {/* Info */}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <h3 className="truncate text-sm font-semibold text-[var(--color-text)]">{book.title}</h3>
         <p className="truncate text-xs text-[var(--color-text-secondary)]">{book.author}</p>
@@ -174,7 +171,6 @@ const BookCard: React.FC<BookCardProps> = ({ book, viewMode, onRead, onDelete })
         </span>
       </div>
 
-      {/* Actions */}
       <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"

@@ -179,12 +179,7 @@ const Reader: React.FC = () => {
       navigate('/');
       return;
     }
-    const id = Number(bookId);
-    if (Number.isNaN(id)) {
-      navigate('/');
-      return;
-    }
-    loadBook(id).then(() => setIsLoaded(true));
+    loadBook(bookId).then(() => setIsLoaded(true));
   }, [bookId, loadBook, navigate]);
 
   // ---- Save progress helper ----

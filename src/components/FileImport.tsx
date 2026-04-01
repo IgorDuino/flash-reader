@@ -1,58 +1,54 @@
 import React, { useCallback, useRef, useState } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { parseFile } from '../lib/parsers/index';
 import { tokenize } from '../lib/tokenizer';
 import { detectLanguage } from '../lib/languageDetect';
 import { useLibraryStore } from '../store/useLibraryStore';
 import { t, useLanguage } from '../i18n';
-import type { BookRecord, Chapter } from '../db/dexie';
+import type { UploadBookMetadata } from '../lib/api';
 import type { ParsedBook } from '../lib/parsers/types';
 
 interface FileImportProps {
-  onImportComplete?: (bookId: number) => void;
+  onImportComplete?: (bookId: string) => void;
 }
 
 const ACCEPTED_EXTENSIONS = '.epub,.pdf,.txt,.md,.docx,.fb2,.mobi';
 
-function buildBookRecord(parsed: ParsedBook, fileData: ArrayBuffer, format: BookRecord['format']): BookRecord {
+type BookFormat = 'epub' | 'pdf' | 'txt' | 'md' | 'docx' | 'fb2' | 'mobi';
+
+/** Extract metadata from a parsed book (without storing chapters). */
+function extractMetadata(parsed: ParsedBook, format: BookFormat): UploadBookMetadata {
   const langInfo = detectLanguage(
     parsed.chapters.map((c) => c.content).join(' ').slice(0, 2000),
   );
 
-  const chapters: Chapter[] = [];
-  let globalWordIndex = 0;
+  let totalWords = 0;
+  const chapterTitles: string[] = [];
 
   for (let i = 0; i < parsed.chapters.length; i++) {
     const ch = parsed.chapters[i];
     const tokens = tokenize(ch.content, langInfo);
-    const words = tokens.map((tok) => tok.word);
-
-    chapters.push({
-      index: i,
-      title: ch.title || `Chapter ${i + 1}`,
-      words,
-      startWordIndex: globalWordIndex,
-    });
-
-    globalWordIndex += words.length;
+    totalWords += tokens.length;
+    chapterTitles.push(ch.title || `Chapter ${i + 1}`);
   }
 
   return {
+    id: uuidv4(),
     title: parsed.title || 'Untitled',
     author: parsed.author || 'Unknown',
     format,
-    fileData,
     coverImage: parsed.coverImage,
-    totalWords: globalWordIndex,
-    chapters,
+    totalWords,
     language: parsed.language || langInfo.language,
+    chapterTitles,
     addedAt: Date.now(),
   };
 }
 
-function getFormat(filename: string): BookRecord['format'] {
+function getFormat(filename: string): BookFormat {
   const ext = filename.split('.').pop()?.toLowerCase() ?? 'txt';
-  const valid: BookRecord['format'][] = ['epub', 'pdf', 'txt', 'md', 'docx', 'fb2', 'mobi'];
-  return (valid.includes(ext as BookRecord['format']) ? ext : 'txt') as BookRecord['format'];
+  const valid: BookFormat[] = ['epub', 'pdf', 'txt', 'md', 'docx', 'fb2', 'mobi'];
+  return (valid.includes(ext as BookFormat) ? ext : 'txt') as BookFormat;
 }
 
 const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
@@ -74,13 +70,15 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
       setStatusMessage(null);
 
       try {
+        // Parse the file client-side to extract metadata
         const parsed: ParsedBook = await parseFile(file);
-        const arrayBuffer = await file.arrayBuffer();
         const format = getFormat(file.name);
-        const record = buildBookRecord(parsed, arrayBuffer, format);
-        const bookId = await addBook(record);
+        const metadata = extractMetadata(parsed, format);
 
-        setStatusMessage({ type: 'success', text: `"${record.title}" imported successfully` });
+        // Upload the raw file + metadata to the server
+        const bookId = await addBook(file, metadata);
+
+        setStatusMessage({ type: 'success', text: `"${metadata.title}" imported successfully` });
         clearStatus();
         onImportComplete?.(bookId);
       } catch (err) {
@@ -101,30 +99,26 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
     setStatusMessage(null);
 
     try {
+      const title = pasteText.slice(0, 40).trim().replace(/\s+/g, ' ') || 'Pasted Text';
       const langInfo = detectLanguage(pasteText.slice(0, 2000));
       const tokens = tokenize(pasteText, langInfo);
-      const words = tokens.map((tok) => tok.word);
 
-      const title = pasteText.slice(0, 40).trim().replace(/\s+/g, ' ') || 'Pasted Text';
-      const record: BookRecord = {
+      const metadata: UploadBookMetadata = {
+        id: uuidv4(),
         title,
         author: 'Unknown',
         format: 'txt',
-        fileData: new TextEncoder().encode(pasteText).buffer as ArrayBuffer,
-        totalWords: words.length,
-        chapters: [
-          {
-            index: 0,
-            title: 'Full Text',
-            words,
-            startWordIndex: 0,
-          },
-        ],
+        totalWords: tokens.length,
         language: langInfo.language,
+        chapterTitles: ['Full Text'],
         addedAt: Date.now(),
       };
 
-      const bookId = await addBook(record);
+      // Create a Blob from the text for upload
+      const blob = new Blob([pasteText], { type: 'text/plain' });
+      const file = new File([blob], 'pasted-text.txt', { type: 'text/plain' });
+
+      const bookId = await addBook(file, metadata);
       setPasteText('');
       setStatusMessage({ type: 'success', text: `"${title}" imported successfully` });
       clearStatus();
@@ -170,7 +164,6 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
       if (file) {
         handleImportFile(file);
       }
-      // Reset input so the same file can be re-selected
       e.target.value = '';
     },
     [handleImportFile],
@@ -223,7 +216,6 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
           </div>
         ) : (
           <>
-            {/* File icon */}
             <svg
               className="h-12 w-12 text-[var(--color-text-secondary)]"
               xmlns="http://www.w3.org/2000/svg"
@@ -253,7 +245,6 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
         />
       </div>
 
-      {/* Import File Button (separate from drop zone for clarity) */}
       <button
         type="button"
         onClick={() => fileInputRef.current?.click()}
@@ -266,7 +257,6 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
         {t('library.import')}
       </button>
 
-      {/* Paste Text Section */}
       <div className="space-y-3">
         <p className="text-sm font-medium text-[var(--color-text-secondary)]">{t('library.pasteText')}</p>
         <textarea
@@ -295,7 +285,6 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
         </button>
       </div>
 
-      {/* Status Message */}
       {statusMessage && (
         <div
           className={`rounded-lg px-4 py-3 text-sm font-medium ${

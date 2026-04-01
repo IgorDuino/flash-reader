@@ -1,7 +1,14 @@
 import { create } from 'zustand';
-import { db, type BookRecord, type ReadingProgress } from '../db/dexie';
+import { db, type ReadingProgress } from '../db/dexie';
+import {
+  fetchBooks,
+  uploadBook,
+  deleteBookFromServer,
+  type ServerBookMeta,
+  type UploadBookMetadata,
+} from '../lib/api';
 
-export type BookWithProgress = BookRecord & { progress?: ReadingProgress };
+export type BookWithProgress = ServerBookMeta & { progress?: ReadingProgress };
 
 interface LibraryState {
   books: BookWithProgress[];
@@ -10,8 +17,8 @@ interface LibraryState {
 
   init: () => Promise<void>;
   loadBooks: () => Promise<void>;
-  addBook: (record: BookRecord) => Promise<number>;
-  deleteBook: (id: number) => Promise<void>;
+  addBook: (file: File | Blob, metadata: UploadBookMetadata) => Promise<string>;
+  deleteBook: (id: string) => Promise<void>;
   setSearchQuery: (q: string) => void;
   getFilteredBooks: () => BookWithProgress[];
 }
@@ -28,11 +35,12 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
   loadBooks: async () => {
     set({ isLoading: true });
     try {
-      const allBooks = await db.books.toArray();
-      const allProgress = await db.progress.toArray();
+      // Fetch book metadata from the server
+      const serverBooks = await fetchBooks();
 
-      // Index progress by bookId (use the latest entry per book)
-      const progressByBookId = new Map<number, ReadingProgress>();
+      // Read progress from local IndexedDB
+      const allProgress = await db.progress.toArray();
+      const progressByBookId = new Map<string, ReadingProgress>();
       for (const p of allProgress) {
         const existing = progressByBookId.get(p.bookId);
         if (!existing || p.lastReadAt > existing.lastReadAt) {
@@ -40,9 +48,9 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
         }
       }
 
-      const booksWithProgress: BookWithProgress[] = allBooks.map((book) => ({
+      const booksWithProgress: BookWithProgress[] = serverBooks.map((book) => ({
         ...book,
-        progress: book.id != null ? progressByBookId.get(book.id) : undefined,
+        progress: progressByBookId.get(book.id),
       }));
 
       set({ books: booksWithProgress, isLoading: false });
@@ -52,15 +60,15 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
     }
   },
 
-  addBook: async (record: BookRecord): Promise<number> => {
-    const id = await db.books.add(record);
+  addBook: async (file: File | Blob, metadata: UploadBookMetadata): Promise<string> => {
+    const created = await uploadBook(file, metadata);
     await get().loadBooks();
-    return id as number;
+    return created.id;
   },
 
-  deleteBook: async (id: number) => {
-    await db.books.delete(id);
-    // Also remove all progress records for this book
+  deleteBook: async (id: string) => {
+    await deleteBookFromServer(id);
+    // Also remove local progress records for this book
     await db.progress.where('bookId').equals(id).delete();
     await get().loadBooks();
   },
@@ -77,7 +85,7 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
     return books.filter(
       (book) =>
         book.title.toLowerCase().includes(query) ||
-        book.author.toLowerCase().includes(query)
+        book.author.toLowerCase().includes(query),
     );
   },
 }));

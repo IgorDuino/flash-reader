@@ -1,18 +1,9 @@
 import Dexie, { type Table } from 'dexie';
 
-export interface BookRecord {
-  id?: number;
-  title: string;
-  author: string;
-  format: 'epub' | 'pdf' | 'txt' | 'md' | 'docx' | 'fb2' | 'mobi';
-  fileData: ArrayBuffer; // raw file for re-parsing
-  coverImage?: string; // base64 data URL
-  totalWords: number;
-  chapters: Chapter[];
-  language: string;
-  addedAt: number; // timestamp
-}
-
+/**
+ * Chapter shape — used at runtime after client-side parsing.
+ * NOT stored in IndexedDB; derived on-the-fly when a book is opened.
+ */
 export interface Chapter {
   index: number;
   title: string;
@@ -20,9 +11,13 @@ export interface Chapter {
   startWordIndex: number; // global word index offset
 }
 
+/**
+ * Reading progress — stored locally in IndexedDB.
+ * bookId is a UUID string matching the server-side book ID.
+ */
 export interface ReadingProgress {
   id?: number;
-  bookId: number;
+  bookId: string;
   currentWordIndex: number;
   currentChapter: number;
   wpm: number;
@@ -33,18 +28,25 @@ export interface ReadingProgress {
 export interface AppSettings {
   id?: number;
   key: string;
-  value: any;
+  value: unknown;
 }
 
 class FlashReadDB extends Dexie {
-  books!: Table<BookRecord>;
   progress!: Table<ReadingProgress>;
   settings!: Table<AppSettings>;
 
   constructor() {
     super('flashread');
+
+    // v1 had a books table — drop it in v2
     this.version(1).stores({
       books: '++id, title, author, format, addedAt',
+      progress: '++id, bookId, lastReadAt',
+      settings: '++id, &key',
+    });
+
+    this.version(2).stores({
+      books: null, // delete the books table
       progress: '++id, bookId, lastReadAt',
       settings: '++id, &key',
     });

@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { db, type Chapter } from '../db/dexie';
 import { useSettingsStore } from './useSettingsStore';
+import { downloadBookFile, fetchBooks } from '../lib/api';
+import { tokenize } from '../lib/tokenizer';
+import { detectLanguage } from '../lib/languageDetect';
 
 interface ReaderState {
   isPlaying: boolean;
@@ -11,10 +14,11 @@ interface ReaderState {
   words: string[]; // current chapter's words
   totalWords: number; // total across all chapters
   chapters: Chapter[];
-  bookId: number | null;
+  bookId: string | null;
+  bookFormat: string | null;
   rampUpCounter: number;
   controlsVisible: boolean;
-  paragraphBoundaries: number[]; // word indices where paragraphs start
+  paragraphBoundaries: number[];
 
   play: () => void;
   pause: () => void;
@@ -25,7 +29,7 @@ interface ReaderState {
   skipSentence: (forward: boolean) => void;
   skipParagraph: (forward: boolean) => void;
   setChapter: (n: number) => void;
-  loadBook: (bookId: number) => Promise<void>;
+  loadBook: (bookId: string) => Promise<void>;
   setWordsPerFlash: (n: 1 | 2 | 3) => void;
   toggleControls: () => void;
 }
@@ -35,8 +39,6 @@ const SENTENCE_ENDINGS = /[.!?]/;
 function findParagraphBoundaries(words: string[]): number[] {
   const boundaries: number[] = [0];
   for (let i = 0; i < words.length; i++) {
-    // A paragraph boundary is indicated by a word that contains
-    // a double newline or is a paragraph marker
     if (words[i].includes('\n\n') || words[i] === '\u00B6') {
       if (i + 1 < words.length) {
         boundaries.push(i + 1);
@@ -44,6 +46,69 @@ function findParagraphBoundaries(words: string[]): number[] {
     }
   }
   return boundaries;
+}
+
+/**
+ * Parse an ArrayBuffer into chapters with tokenized words.
+ * Uses the same parsers as FileImport, but called at read-time.
+ */
+async function parseBookFile(
+  data: ArrayBuffer,
+  format: string,
+): Promise<{ chapters: Chapter[]; totalWords: number }> {
+  // Dynamically import the correct parser
+  let parsed;
+  switch (format) {
+    case 'epub': {
+      const { parseEpub } = await import('../lib/parsers/epub');
+      parsed = await parseEpub(data);
+      break;
+    }
+    case 'pdf': {
+      const { parsePdf } = await import('../lib/parsers/pdf');
+      parsed = await parsePdf(data);
+      break;
+    }
+    case 'docx': {
+      const { parseDocx } = await import('../lib/parsers/docx');
+      parsed = await parseDocx(data);
+      break;
+    }
+    case 'fb2': {
+      const { parseFb2 } = await import('../lib/parsers/fb2');
+      parsed = await parseFb2(data);
+      break;
+    }
+    case 'txt':
+    case 'md':
+    default: {
+      const { parseTxt } = await import('../lib/parsers/txt');
+      parsed = await parseTxt(data, `book.${format}`);
+      break;
+    }
+  }
+
+  const langInfo = detectLanguage(
+    parsed.chapters.map((c) => c.content).join(' ').slice(0, 2000),
+  );
+
+  const chapters: Chapter[] = [];
+  let globalWordIndex = 0;
+
+  for (let i = 0; i < parsed.chapters.length; i++) {
+    const ch = parsed.chapters[i];
+    const tokens = tokenize(ch.content, langInfo);
+    const words = tokens.map((tok) => tok.word);
+    chapters.push({
+      index: i,
+      title: ch.title || `Chapter ${i + 1}`,
+      words,
+      startWordIndex: globalWordIndex,
+    });
+    globalWordIndex += words.length;
+  }
+
+  return { chapters, totalWords: globalWordIndex };
 }
 
 export const useReaderStore = create<ReaderState>()((set, get) => ({
@@ -56,6 +121,7 @@ export const useReaderStore = create<ReaderState>()((set, get) => ({
   totalWords: 0,
   chapters: [],
   bookId: null,
+  bookFormat: null,
   rampUpCounter: 0,
   controlsVisible: true,
   paragraphBoundaries: [],
@@ -92,7 +158,6 @@ export const useReaderStore = create<ReaderState>()((set, get) => ({
     const { currentWordIndex, words, wordsPerFlash, rampUpCounter } = get();
     const nextIndex = currentWordIndex + wordsPerFlash;
     if (nextIndex >= words.length) {
-      // Try to advance to the next chapter
       const { currentChapter, chapters } = get();
       if (currentChapter < chapters.length - 1) {
         get().setChapter(currentChapter + 1);
@@ -117,17 +182,14 @@ export const useReaderStore = create<ReaderState>()((set, get) => ({
           return;
         }
       }
-      // No sentence end found; go to end of chapter
       set({ currentWordIndex: words.length - 1 });
     } else {
-      // Scan backward for previous sentence ending, then position after it
       for (let i = currentWordIndex - 2; i >= 0; i--) {
         if (SENTENCE_ENDINGS.test(words[i])) {
           set({ currentWordIndex: i + 1 });
           return;
         }
       }
-      // No sentence beginning found; go to start
       set({ currentWordIndex: 0 });
     }
   },
@@ -143,7 +205,6 @@ export const useReaderStore = create<ReaderState>()((set, get) => ({
         set({ currentWordIndex: words.length - 1 });
       }
     } else {
-      // Find the paragraph boundary before the current one
       let prev = 0;
       for (const b of paragraphBoundaries) {
         if (b >= currentWordIndex) break;
@@ -166,31 +227,40 @@ export const useReaderStore = create<ReaderState>()((set, get) => ({
     });
   },
 
-  loadBook: async (bookId: number) => {
-    const book = await db.books.get(bookId);
-    if (!book) {
-      console.error(`Book with id ${bookId} not found`);
+  loadBook: async (bookId: string) => {
+    // 1. Get the book metadata from server to know its format
+    const allBooks = await fetchBooks();
+    const bookMeta = allBooks.find((b) => b.id === bookId);
+    if (!bookMeta) {
+      console.error(`Book with id ${bookId} not found on server`);
       return;
     }
 
-    // Load saved progress
+    // 2. Download the raw file
+    const fileData = await downloadBookFile(bookId);
+
+    // 3. Parse and tokenize client-side
+    const { chapters, totalWords } = await parseBookFile(fileData, bookMeta.format);
+
+    // 4. Load saved progress from local IndexedDB
     const progress = await db.progress
       .where('bookId')
       .equals(bookId)
       .first();
 
-    // Inherit settings from the settings store
+    // 5. Inherit settings
     const settings = useSettingsStore.getState();
 
     const chapterIndex = progress?.currentChapter ?? 0;
     const wordIndex = progress?.currentWordIndex ?? 0;
-    const chapter = book.chapters[chapterIndex] ?? book.chapters[0];
+    const chapter = chapters[chapterIndex] ?? chapters[0];
     const boundaries = findParagraphBoundaries(chapter?.words ?? []);
 
     set({
       bookId,
-      chapters: book.chapters,
-      totalWords: book.totalWords,
+      bookFormat: bookMeta.format,
+      chapters,
+      totalWords,
       currentChapter: chapterIndex,
       currentWordIndex: wordIndex,
       words: chapter?.words ?? [],

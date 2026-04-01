@@ -119,7 +119,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ compact = false }) => {
       return;
     }
     // Step 2: actually clear
-    await db.books.clear();
     await db.progress.clear();
     await db.settings.clear();
     useSettingsStore.getState().resetToDefaults();

@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "npx tsx server-dev.ts & vite",
-    "dev:api": "npx tsx server-dev.ts",
+    "dev": "node --disable-warning=DEP0169 --import tsx/esm server-dev.ts & vite",
+    "dev:api": "node --disable-warning=DEP0169 --import tsx/esm server-dev.ts",
     "dev:vite": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",

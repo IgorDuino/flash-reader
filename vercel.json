@@ -3,8 +3,22 @@
   "buildCommand": "tsc -b && vite build",
   "outputDirectory": "dist",
   "framework": null,
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/((?!api/).*)", "destination": "/" }
+    { "source": "/((?!api/|assets/|sw\\.js|manifest\\.json|favicon).*)", "destination": "/" }
   ]
 }
